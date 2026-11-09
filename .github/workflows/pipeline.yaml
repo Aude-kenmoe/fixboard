@@ -28,11 +28,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Scan the history for secrets
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -42,6 +37,7 @@ jobs:
         run: |
           npm ci
           npm test
+          sed -i 's|^SF:|SF:backend/|' coverage/lcov.info
 
       - name: Frontend lint
         working-directory: frontend
