@@ -1,2 +1,5 @@
 .env
 platform-config.env
+.terraform/**
+tfplan
+.terraform.lock.hcl

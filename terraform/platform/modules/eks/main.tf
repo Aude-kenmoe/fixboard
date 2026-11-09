@@ -42,4 +42,16 @@ module "eks" {
       desired_size = var.node_desired_size
     }
   }
+    # The EKS metrics-server add-on listens on port 10251. The module's node
+  # security group does not open it to the control plane by default.
+  node_security_group_additional_rules = {
+    ingress_cluster_metrics_server = {
+      description                   = "Control plane to metrics-server"
+      protocol                      = "tcp"
+      from_port                     = 10251
+      to_port                       = 10251
+      type                          = "ingress"
+      source_cluster_security_group = true
+    }
+  }
 }
