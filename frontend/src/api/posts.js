@@ -1,8 +1,14 @@
 import request, { uploadRequest } from './client';
 
-export function listPosts({ tag } = {}) {
-  const query = tag ? `?tag=${encodeURIComponent(tag)}` : '';
-  return request(`/posts${query}`);
+/**
+ * Returns { data: Post[], pagination: { page, limit, total, totalPages } }
+ */
+export function listPosts({ tag, page = 1, limit = 20 } = {}) {
+  const params = new URLSearchParams();
+  if (tag) params.set('tag', tag);
+  params.set('page', String(page));
+  params.set('limit', String(limit));
+  return request(`/posts?${params.toString()}`);
 }
 
 export function getMyPosts() {
