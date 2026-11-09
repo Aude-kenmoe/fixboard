@@ -45,6 +45,10 @@ async function createPost(req, res, next) {
 async function listPosts(req, res, next) {
   try {
     const { tag } = req.query;
+    const page   = Math.max(1, parseInt(req.query.page  || '1',  10));
+    const limit  = Math.min(50, Math.max(1, parseInt(req.query.limit || '20', 10)));
+    const offset = (page - 1) * limit;
+
     const conditions = ['posts.deleted_at IS NULL'];
     const params = [];
 
@@ -53,30 +57,52 @@ async function listPosts(req, res, next) {
       conditions.push(`tags.name ILIKE $${params.length}`);
     }
 
-    const { rows } = await pool.query(
-      `SELECT
-         posts.id,
-         posts.title,
-         posts.description,
-         posts.status,
-         posts.created_at,
-         users.name AS author_name,
-         users.avatar_initials AS author_avatar_initials,
-         tags.id AS tag_id,
-         tags.name AS tag_name,
-         (
-           SELECT COUNT(*)::int FROM comments
-           WHERE comments.post_id = posts.id AND comments.deleted_at IS NULL
-         ) AS comment_count
-       FROM posts
-       JOIN users ON users.id = posts.author_id
-       JOIN tags ON tags.id = posts.tag_id
-       WHERE ${conditions.join(' AND ')}
-       ORDER BY posts.created_at DESC`,
-      params
-    );
+    const whereClause = conditions.join(' AND ');
 
-    res.json(rows);
+    const [rowsResult, countResult] = await Promise.all([
+      pool.query(
+        `SELECT
+           posts.id,
+           posts.title,
+           posts.description,
+           posts.status,
+           posts.created_at,
+           users.name AS author_name,
+           users.avatar_initials AS author_avatar_initials,
+           tags.id AS tag_id,
+           tags.name AS tag_name,
+           (
+             SELECT COUNT(*)::int FROM comments
+             WHERE comments.post_id = posts.id AND comments.deleted_at IS NULL
+           ) AS comment_count
+         FROM posts
+         JOIN users ON users.id = posts.author_id
+         JOIN tags ON tags.id = posts.tag_id
+         WHERE ${whereClause}
+         ORDER BY posts.created_at DESC
+         LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, limit, offset]
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS total
+         FROM posts
+         JOIN tags ON tags.id = posts.tag_id
+         WHERE ${whereClause}`,
+        params
+      ),
+    ]);
+
+    const total = countResult.rows[0].total;
+
+    res.json({
+      data: rowsResult.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (err) {
     next(err);
   }

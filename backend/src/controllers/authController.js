@@ -37,7 +37,7 @@ async function signup(req, res, next) {
     );
 
     const user = rows[0];
-    const token = jwt.sign({ userId: user.id }, jwtSecret, { expiresIn: jwtExpiresIn });
+    const token = jwt.sign({ userId: user.id, role: user.role }, jwtSecret, { expiresIn: jwtExpiresIn });
 
     res.status(201).json({ token, user });
   } catch (err) {
@@ -64,7 +64,7 @@ async function login(req, res, next) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const token = jwt.sign({ userId: user.id }, jwtSecret, { expiresIn: jwtExpiresIn });
+    const token = jwt.sign({ userId: user.id, role: user.role }, jwtSecret, { expiresIn: jwtExpiresIn });
 
     res.json({
       token,

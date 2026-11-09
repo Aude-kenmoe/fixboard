@@ -1,0 +1,17 @@
+# Terraform working files
+.terraform/
+crash.log
+
+# State holds generated secrets (database password, JWT secret) in plain text
+*.tfstate
+*.tfstate.*
+
+# Saved plans can contain secrets too
+*.tfplan
+
+# Your own variable values. Only the .example file is committed
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Commit .terraform.lock.hcl so everyone installs the same provider versions

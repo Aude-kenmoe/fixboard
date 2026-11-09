@@ -1,0 +1,26 @@
+# Copy this file to terraform.tfvars and edit the copy. terraform.tfvars is
+# ignored by Git, because it holds values specific to your AWS account.
+# One file covers the whole project: edit the values marked CHANGE, then flip
+# the phase switches as you reach Phase 2 and Phase 3.
+
+region       = "us-east-1"
+project_name = "fixboard"
+cluster_name = "ridgeline-fixboard"
+
+# CHANGE: a domain that already has a public hosted zone in Route 53,
+# and the primary domain name of its issued ACM certificate in this region.
+domain_name        = "example.com"
+certificate_domain = "*.example.com"
+
+# Phase 2: CI/CD and GitOps
+enable_gitops     = false
+github_repository = "" # CHANGE when enabling: owner/name, for example my-org/fixboard
+github_branch     = "main"
+
+# An AWS account can hold only one GitHub OIDC provider.
+# true  = Terraform creates it (default, a new or clean account).
+# false = the account already has one, so Terraform reuses it.
+create_github_oidc_provider = true
+
+# Phase 3: Observability and Operations
+enable_observability = false
