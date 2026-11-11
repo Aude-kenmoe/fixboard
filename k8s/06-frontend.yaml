@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: 885684264653.dkr.ecr.us-east-1.amazonaws.com/aude-fixboard/frontend:1.1.0
+          image: 885684264653.dkr.ecr.us-east-1.amazonaws.com/aude-fixboard/frontend:90feb3c
           ports:
             - containerPort: 80
           env:
