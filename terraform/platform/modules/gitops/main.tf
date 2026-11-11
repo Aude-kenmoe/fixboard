@@ -26,6 +26,8 @@ resource "helm_release" "argocd" {
         "policy.csv" = join("\n", [
           "p, role:ci, applications, get, default/fixboard, allow",
           "p, role:ci, applications, sync, default/fixboard, allow",
+          # Recent Argo CD versions also read the app's project during `argocd app get/wait`.
+          "p, role:ci, projects, get, default, allow",
           "g, ci, role:ci",
         ])
       }
