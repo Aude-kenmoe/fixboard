@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+data:
+  NODE_ENV: production
+  PORT: "3000"
+  LOG_LEVEL: info
+  JWT_EXPIRES_IN: 7d
+  DB_POOL_MAX: "5"
+  UPLOADS_DIR: /app/uploads
+  CORS_ORIGIN: https://fixboard.example.com

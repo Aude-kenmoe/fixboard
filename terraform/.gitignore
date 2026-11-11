@@ -15,3 +15,6 @@ crash.log
 !*.tfvars.example
 
 # Commit .terraform.lock.hcl so everyone installs the same provider versions
+
+# The guide saves the plan as "tfplan" (no extension)
+tfplan
