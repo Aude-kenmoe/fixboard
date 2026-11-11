@@ -1,0 +1,197 @@
+name: pipeline
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "sonar-project.properties"
+      - ".github/workflows/pipeline.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "sonar-project.properties"
+      - ".github/workflows/pipeline.yml"
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # 1. Secrets, tests, code quality (pull requests and main)
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan the history for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Backend unit tests
+        working-directory: backend
+        run: |
+          npm ci
+          npm test
+          sed -i 's|^SF:|SF:backend/|' coverage/lcov.info
+
+      - name: Frontend lint
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint
+
+      - name: SonarCloud analysis
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # 2. Build both images and scan them (pull requests and main)
+  build:
+    needs: checks
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute the image tag
+        id: tag
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          load: true
+          tags: fixboard-backend:${{ steps.tag.outputs.tag }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
+
+      - name: Build the frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          load: true
+          tags: fixboard-frontend:${{ steps.tag.outputs.tag }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+
+      - name: Scan backend
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: fixboard-backend:${{ steps.tag.outputs.tag }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Scan frontend
+        uses: aquasecurity/trivy-action@0.35.0
+        with:
+          image-ref: fixboard-frontend:${{ steps.tag.outputs.tag }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Save the scanned images
+        if: github.event_name == 'push'
+        run: |
+          TAG=${{ steps.tag.outputs.tag }}
+          docker save fixboard-backend:$TAG fixboard-frontend:$TAG -o images.tar
+
+      - name: Keep the images for the release job
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: images
+          path: images.tar
+          retention-days: 1
+
+  # 3. Push to ECR and record the new tag in k8s/ (main only)
+  release:
+    needs: build
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    concurrency: release
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: images
+
+      - name: Load the scanned images
+        run: docker load -i images.tar
+
+      - name: Sign in to AWS without a stored key
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Tag and push to ECR
+        env:
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          docker tag fixboard-backend:$TAG ${{ vars.ECR_BACKEND }}:$TAG
+          docker tag fixboard-frontend:$TAG ${{ vars.ECR_FRONTEND }}:$TAG
+          docker push ${{ vars.ECR_BACKEND }}:$TAG
+          docker push ${{ vars.ECR_FRONTEND }}:$TAG
+
+      - name: Record the new tags in Git
+        env:
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main
+          sed -i -E "s|(image: .*/backend:).*|\1$TAG|" k8s/05-backend.yaml
+          sed -i -E "s|(image: .*/frontend:).*|\1$TAG|" k8s/06-frontend.yaml
+          git add k8s/05-backend.yaml k8s/06-frontend.yaml
+          if ! git diff --cached --quiet; then
+            git commit -m "Release $TAG [skip ci]"
+            git push origin main
+          else
+            echo "Image tags already up to date"
+          fi
+
+  # 4. Wait for ArgoCD, then smoke test the live site (main only)
+  verify:
+    needs: release
+    runs-on: ubuntu-latest
+    env:
+      ARGOCD_SERVER: ${{ vars.ARGOCD_SERVER }}
+      ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+    steps:
+      - name: Install the ArgoCD CLI
+        run: |
+          curl -sSL -o argocd \
+            https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo install -m 755 argocd /usr/local/bin/argocd
+
+      - name: Wait for ArgoCD to deploy the release
+        run: |
+          argocd app get fixboard --refresh --grpc-web > /dev/null
+          argocd app wait fixboard --sync --health --timeout 300 --grpc-web
+
+      - name: Smoke test the live site
+        run: |
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "${{ vars.APP_URL }}/" > /dev/null
+          curl -fsS --retry 5 --retry-delay 5 --retry-all-errors "${{ vars.APP_URL }}/api/health"
