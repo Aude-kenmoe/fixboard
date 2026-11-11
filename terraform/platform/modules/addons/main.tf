@@ -15,11 +15,10 @@ module "alb_controller_role" {
 }
 
 resource "helm_release" "alb_controller" {
-  name       = "aws-load-balancer-controller"
-  repository = "https://aws.github.io/eks-charts"
-  chart      = "aws-load-balancer-controller"
-  version    = try(var.chart_versions["alb"], null)
-  namespace  = "kube-system"
+  name = "aws-load-balancer-controller"
+  # Downloaded from raw.githubusercontent.com because *.github.io is blocked on our network.
+  chart     = "https://raw.githubusercontent.com/aws/eks-charts/gh-pages/aws-load-balancer-controller-3.6.2.tgz"
+  namespace = "kube-system"
 
   values = [yamlencode({
     clusterName = var.cluster_name
@@ -106,10 +105,9 @@ module "external_secrets_role" {
 }
 
 resource "helm_release" "external_secrets" {
-  name             = "external-secrets"
-  repository       = "https://charts.external-secrets.io"
-  chart            = "external-secrets"
-  version          = try(var.chart_versions["external_secrets"], null)
+  name = "external-secrets"
+  # Downloaded from github.com releases because charts.external-secrets.io is blocked on our network.
+  chart            = "https://github.com/external-secrets/external-secrets/releases/download/helm-chart-2.14.0/external-secrets-2.14.0.tgz"
   namespace        = "external-secrets"
   create_namespace = true
 
@@ -156,10 +154,9 @@ module "external_dns_role" {
 }
 
 resource "helm_release" "external_dns" {
-  name             = "external-dns"
-  repository       = "https://kubernetes-sigs.github.io/external-dns/"
-  chart            = "external-dns"
-  version          = try(var.chart_versions["external_dns"], null)
+  name = "external-dns"
+  # Downloaded from github.com releases because *.github.io is blocked on our network.
+  chart            = "https://github.com/kubernetes-sigs/external-dns/releases/download/external-dns-helm-chart-1.23.0/external-dns-1.23.0.tgz"
   namespace        = "external-dns"
   create_namespace = true
 

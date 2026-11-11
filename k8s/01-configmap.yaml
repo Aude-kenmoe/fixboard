@@ -9,4 +9,4 @@ data:
   JWT_EXPIRES_IN: 7d
   DB_POOL_MAX: "5"
   UPLOADS_DIR: /app/uploads
-  CORS_ORIGIN: https://fixboard.example.com
+  CORS_ORIGIN: https://fixboard-aude.gamela.shop

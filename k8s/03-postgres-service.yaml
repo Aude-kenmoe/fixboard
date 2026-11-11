@@ -4,4 +4,4 @@ metadata:
   name: postgres-service
 spec:
   type: ExternalName
-  externalName: <RDS_HOST>
+  externalName: aude-fixboard-postgres.csdse24oq7vv.us-east-1.rds.amazonaws.com

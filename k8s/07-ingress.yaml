@@ -7,12 +7,12 @@ metadata:
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
     alb.ingress.kubernetes.io/ssl-redirect: "443"
-    alb.ingress.kubernetes.io/certificate-arn: <CERT_ARN>
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:885684264653:certificate/a9d8fe4d-5706-459d-a9c7-e0ed96134610
     alb.ingress.kubernetes.io/healthcheck-path: /
 spec:
   ingressClassName: alb
   rules:
-    - host: fixboard.example.com
+    - host: fixboard-aude.gamela.shop
       http:
         paths:
           - path: /
